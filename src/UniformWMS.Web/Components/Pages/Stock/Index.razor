@@ -1,0 +1,240 @@
+@page "/stock"
+@attribute [Authorize]
+@inject UniformItemApiService UniformSvc
+
+<PageTitle>Tồn kho - UniformWMS</PageTitle>
+<PageHeader Title="Quản lý tồn kho" Subtitle="Theo dõi số lượng tồn và điều chỉnh" Icon="bi-archive">
+</PageHeader>
+
+<AlertMessage Message="@_msg" Type="@_msgType" />
+
+<!-- Filter Bar -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" class="form-control border-start-0 ps-0" placeholder="Tìm theo mã hoặc tên..."
+                           @bind="_search" @bind:event="oninput" @onkeyup="OnSearch" />
+                </div>
+            </div>
+            <div class="col-auto ms-auto d-flex gap-2 align-items-center">
+                <div class="form-check mb-0">
+                    <input class="form-check-input" type="checkbox" id="chkLowStock"
+                           @bind="_showLowOnly" @bind:after="() => LoadPage(1)" />
+                    <label class="form-check-label small text-warning fw-semibold" for="chkLowStock">
+                        <i class="bi bi-exclamation-triangle me-1"></i>Chỉ hiện tồn thấp
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <LoadingSpinner IsLoading="_loading" />
+    @if (!_loading)
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Mã hàng</th>
+                        <th>Tên mặt hàng</th>
+                        <th>Danh mục</th>
+                        <th>Size / Màu</th>
+                        <th class="text-center">Tồn hiện tại</th>
+                        <th class="text-center">Tối thiểu</th>
+                        <th class="text-center">Tình trạng</th>
+                        <th class="text-center" style="width:90px;">Điều chỉnh</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_result?.Items.Any() == true)
+                    {
+                        @foreach (var item in _result.Items)
+                        {
+                            <tr class="@(item.IsLowStock ? "table-warning" : "")">
+                                <td><code class="text-dark fw-semibold">@item.ItemCode</code></td>
+                                <td class="fw-semibold">@item.Name</td>
+                                <td>
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary">@item.CategoryName</span>
+                                </td>
+                                <td class="small">@item.SizeName / @item.Color</td>
+                                <td class="text-center">
+                                    <span class="fs-6 fw-bold @(item.IsLowStock ? "text-danger" : "text-success")">
+                                        @item.CurrentStock
+                                    </span>
+                                </td>
+                                <td class="text-center text-muted">@item.MinStockLevel</td>
+                                <td class="text-center">
+                                    @if (item.IsLowStock)
+                                    {
+                                        <span class="badge bg-danger bg-opacity-10 text-danger">
+                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>Tồn thấp
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success bg-opacity-10 text-success">
+                                            <i class="bi bi-check-circle me-1"></i>Đủ hàng
+                                        </span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-outline-primary" title="Điều chỉnh tồn kho"
+                                            @onclick="() => OpenAdjustModal(item)">
+                                        <i class="bi bi-sliders"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="8" class="text-center text-muted py-5">
+                            <i class="bi bi-inbox fs-2 d-block mb-2 opacity-25"></i>Không có dữ liệu
+                        </td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer bg-transparent">
+            <PaginationBar CurrentPage="_page" PageSize="20"
+                           TotalCount="@(_result?.TotalCount ?? 0)"
+                           OnPageChanged="LoadPage" />
+        </div>
+    }
+</div>
+
+<!-- Adjust Stock Modal -->
+@if (_showAdjust && _adjustTarget != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-semibold">
+                        <i class="bi bi-sliders me-2 text-primary"></i>Điều chỉnh tồn kho
+                    </h5>
+                    <button class="btn-close" @onclick="CloseAdjust"></button>
+                </div>
+                <div class="modal-body">
+                    <AlertMessage Message="@_adjustError" Type="danger" />
+                    <div class="bg-light rounded p-3 mb-3">
+                        <div class="fw-semibold">@_adjustTarget.Name</div>
+                        <div class="small text-muted">@_adjustTarget.ItemCode — @_adjustTarget.SizeName / @_adjustTarget.Color</div>
+                        <div class="mt-2">
+                            <span class="text-muted small">Tồn kho hiện tại: </span>
+                            <strong class="text-primary">@_adjustTarget.CurrentStock</strong>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">
+                            Thay đổi số lượng
+                            <span class="text-muted fw-normal">(dương = thêm, âm = giảm)</span>
+                        </label>
+                        <input type="number" class="form-control" @bind="_adjustQty"
+                               placeholder="VD: 10 hoặc -5" />
+                        @if (_adjustQty != 0)
+                        {
+                            <small class="text-muted mt-1 d-block">
+                                Tồn sau điều chỉnh:
+                                <strong class="@(_adjustTarget.CurrentStock + _adjustQty < 0 ? "text-danger" : "text-success")">
+                                    @(_adjustTarget.CurrentStock + _adjustQty)
+                                </strong>
+                            </small>
+                        }
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Lý do điều chỉnh</label>
+                        <textarea class="form-control" rows="2" placeholder="Nhập lý do điều chỉnh..."
+                                  @bind="_adjustNotes"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="CloseAdjust">Hủy</button>
+                    <button class="btn btn-primary btn-sm" @onclick="ExecuteAdjust" disabled="@_adjusting">
+                        @if (_adjusting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi bi-check-lg me-1"></i>Xác nhận điều chỉnh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private PagedResult<UniformItemDto>? _result;
+    private int _page = 1;
+    private string _search = "";
+    private bool _showLowOnly;
+    private string? _msg; private string _msgType = "success";
+
+    // Adjust modal
+    private bool _showAdjust, _adjusting;
+    private string? _adjustError;
+    private UniformItemDto? _adjustTarget;
+    private int _adjustQty;
+    private string _adjustNotes = "";
+
+    protected override async Task OnInitializedAsync() => await LoadPage(1);
+
+    private async Task LoadPage(int p)
+    {
+        _loading = true; _page = p;
+        if (_showLowOnly)
+        {
+            var items = await UniformSvc.GetLowStockAsync();
+            var list = items?.ToList() ?? new();
+            _result = new PagedResult<UniformItemDto>
+            {
+                Items = list, TotalCount = list.Count, Page = 1, PageSize = list.Count + 1
+            };
+        }
+        else
+        {
+            _result = await UniformSvc.GetPagedAsync(p, 20, _search);
+        }
+        _loading = false;
+    }
+
+    private void OnSearch(KeyboardEventArgs e)
+    {
+        var t = new System.Timers.Timer(400);
+        t.Elapsed += async (_, _) => { t.Dispose(); await InvokeAsync(() => LoadPage(1)); };
+        t.AutoReset = false; t.Start();
+    }
+
+    private void OpenAdjustModal(UniformItemDto item)
+    {
+        _adjustTarget = item; _adjustQty = 0; _adjustNotes = "";
+        _adjustError = null; _showAdjust = true;
+    }
+
+    private void CloseAdjust() => _showAdjust = false;
+
+    private async Task ExecuteAdjust()
+    {
+        if (_adjustQty == 0) { _adjustError = "Vui lòng nhập số lượng điều chỉnh khác 0."; return; }
+        if (_adjustTarget!.CurrentStock + _adjustQty < 0)
+        {
+            _adjustError = "Tồn kho không thể âm."; return;
+        }
+        _adjusting = true; _adjustError = null;
+        var res = await UniformSvc.AdjustStockAsync(_adjustTarget.Id, _adjustQty, _adjustNotes);
+        if (res?.Success == true)
+        {
+            _msg = $"Điều chỉnh tồn kho '{_adjustTarget.Name}' thành công.";
+            _msgType = "success"; _showAdjust = false;
+            await LoadPage(_page);
+        }
+        else
+        {
+            _adjustError = res?.Errors.FirstOrDefault() ?? "Có lỗi xảy ra.";
+        }
+        _adjusting = false;
+    }
+}

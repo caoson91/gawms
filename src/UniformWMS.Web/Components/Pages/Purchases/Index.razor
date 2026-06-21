@@ -1,0 +1,131 @@
+@page "/purchases"
+@attribute [Authorize]
+@inject PurchaseOrderApiService PurchaseSvc
+
+<PageTitle>Đơn nhập hàng - UniformWMS</PageTitle>
+<PageHeader Title="Đơn nhập hàng" Subtitle="Quản lý nhập kho đồng phục" Icon="bi-cart-plus">
+    <Actions>
+        <a href="/purchases/create" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i>Tạo đơn hàng
+        </a>
+    </Actions>
+</PageHeader>
+
+<AlertMessage Message="@_msg" Type="@_msgType" />
+
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="input-group input-group-sm" style="max-width:350px;">
+            <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" class="form-control border-start-0 ps-0" placeholder="Tìm theo mã đơn..."
+                   @bind="_search" @bind:event="oninput" @onkeyup="OnSearch" />
+        </div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <LoadingSpinner IsLoading="_loading" />
+    @if (!_loading)
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Mã đơn</th>
+                        <th>Nhà cung cấp</th>
+                        <th>Ngày đặt</th>
+                        <th>Ngày dự nhận</th>
+                        <th class="text-end">Tổng tiền</th>
+                        <th class="text-center">Trạng thái</th>
+                        <th class="text-center" style="width:110px;">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_result?.Items.Any() == true)
+                    {
+                        @foreach (var po in _result.Items)
+                        {
+                            <tr>
+                                <td><code class="fw-semibold">@po.OrderCode</code></td>
+                                <td class="fw-semibold">@(po.SupplierName ?? "—")</td>
+                                <td class="small text-muted">@po.OrderDate.ToString("dd/MM/yyyy")</td>
+                                <td class="small text-muted">@(po.ExpectedDate?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                <td class="text-end fw-semibold">@po.TotalAmount.ToString("N0")đ</td>
+                                <td class="text-center">
+                                    <span class="badge @PoStatusBadge(po.Status)">@po.StatusName</span>
+                                </td>
+                                <td class="text-center">
+                                    <div class="d-flex gap-1 justify-content-center">
+                                        <a href="/purchases/@po.Id" class="btn btn-sm btn-outline-primary" title="Chi tiết">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        @if (po.Status == 1)
+                                        {
+                                            <button class="btn btn-sm btn-outline-success" title="Duyệt"
+                                                    @onclick="() => HandleApprove(po.Id)">
+                                                <i class="bi bi-check-lg"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="7" class="text-center text-muted py-5">
+                            <i class="bi bi-inbox fs-2 d-block mb-2 opacity-25"></i>Chưa có đơn hàng nào
+                        </td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer bg-transparent">
+            <PaginationBar CurrentPage="_page" PageSize="20"
+                           TotalCount="@(_result?.TotalCount ?? 0)"
+                           OnPageChanged="LoadPage" />
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private PagedResult<PurchaseOrderDto>? _result;
+    private int _page = 1;
+    private string _search = "";
+    private string? _msg; private string _msgType = "success";
+
+    protected override async Task OnInitializedAsync() => await LoadPage(1);
+
+    private async Task LoadPage(int p)
+    {
+        _loading = true; _page = p;
+        _result = await PurchaseSvc.GetPagedAsync(p, 20, _search);
+        _loading = false;
+    }
+
+    private void OnSearch(KeyboardEventArgs e)
+    {
+        var t = new System.Timers.Timer(400);
+        t.Elapsed += async (_, _) => { t.Dispose(); await InvokeAsync(() => LoadPage(1)); };
+        t.AutoReset = false; t.Start();
+    }
+
+    private async Task HandleApprove(Guid id)
+    {
+        var res = await PurchaseSvc.ApproveAsync(id);
+        _msg = res?.Success == true ? "Duyệt đơn hàng thành công." : res?.Errors.FirstOrDefault() ?? "Lỗi.";
+        _msgType = res?.Success == true ? "success" : "danger";
+        if (res?.Success == true) await LoadPage(_page);
+    }
+
+    private static string PoStatusBadge(int s) => s switch
+    {
+        1 => "bg-secondary",
+        2 => "bg-warning text-dark",
+        3 => "bg-info text-dark",
+        4 => "bg-success",
+        5 => "bg-danger",
+        _ => "bg-light text-dark"
+    };
+}

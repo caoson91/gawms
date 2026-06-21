@@ -1,0 +1,92 @@
+@* Employees/Index.razor *@
+@page "/employees"
+@attribute [Authorize]
+@inject EmployeeApiService EmployeeSvc
+
+<PageTitle>Nhân viên - UniformWMS</PageTitle>
+<PageHeader Title="Nhân viên" Subtitle="Danh sách nhân viên" Icon="bi-people">
+    <Actions>
+        <a href="/employees/create" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i>Thêm nhân viên
+        </a>
+    </Actions>
+</PageHeader>
+
+<AlertMessage Message="@_msg" Type="@_msgType" />
+
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="input-group input-group-sm" style="max-width:350px;">
+            <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" class="form-control border-start-0 ps-0" placeholder="Tìm theo mã hoặc tên..."
+                   @bind="_search" @bind:event="oninput" @onkeyup="OnSearch" />
+        </div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <LoadingSpinner IsLoading="_loading" />
+    @if (!_loading)
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Mã NV</th><th>Họ tên</th><th>Phòng ban</th>
+                        <th>Chức vụ</th><th>Ngày vào làm</th>
+                        <th class="text-center">Trạng thái</th>
+                        <th class="text-center" style="width:90px;">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_result?.Items.Any() == true)
+                    {
+                        @foreach (var emp in _result.Items)
+                        {
+                            <tr>
+                                <td><code class="text-dark">@emp.EmployeeCode</code></td>
+                                <td class="fw-semibold">@emp.FullName</td>
+                                <td><span class="badge bg-secondary bg-opacity-10 text-secondary">@emp.DepartmentName</span></td>
+                                <td class="text-muted small">@(emp.Position ?? "—")</td>
+                                <td class="text-muted small">@emp.JoinDate.ToString("dd/MM/yyyy")</td>
+                                <td class="text-center">
+                                    <span class="badge @(emp.Status == 1 ? "bg-success bg-opacity-10 text-success" : "bg-secondary bg-opacity-10 text-secondary")">
+                                        @(emp.Status == 1 ? "Đang làm việc" : emp.Status == 2 ? "Không hoạt động" : "Đã nghỉ việc")
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <a href="/employees/@emp.Id/edit" class="btn btn-sm btn-outline-secondary" title="Sửa">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="7" class="text-center text-muted py-5">
+                            <i class="bi bi-inbox fs-2 d-block mb-2 opacity-25"></i>Không có dữ liệu
+                        </td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer bg-transparent">
+            <PaginationBar CurrentPage="_page" PageSize="20"
+                           TotalCount="@(_result?.TotalCount ?? 0)"
+                           OnPageChanged="LoadPage" />
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private PagedResult<EmployeeDto>? _result;
+    private int _page = 1;
+    private string _search = "";
+    private string? _msg; private string _msgType = "success";
+
+    protected override async Task OnInitializedAsync() => await LoadPage(1);
+    private async Task LoadPage(int p) { _loading = true; _page = p; _result = await EmployeeSvc.GetPagedAsync(p, 20, _search); _loading = false; }
+    private void OnSearch(KeyboardEventArgs e) { var t = new System.Timers.Timer(400); t.Elapsed += async (_, _) => { t.Dispose(); await InvokeAsync(() => LoadPage(1)); }; t.AutoReset = false; t.Start(); }
+}

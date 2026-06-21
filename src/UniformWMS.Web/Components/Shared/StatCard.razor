@@ -1,0 +1,26 @@
+<div class="card border-0 shadow-sm h-100">
+    <div class="card-body">
+        <div class="d-flex align-items-start justify-content-between">
+            <div>
+                <p class="text-muted small mb-1">@Title</p>
+                <h3 class="fw-bold mb-0">@Value</h3>
+                @if (!string.IsNullOrEmpty(Subtitle))
+                {
+                    <small class="text-muted">@Subtitle</small>
+                }
+            </div>
+            <div class="rounded-3 bg-@Color bg-opacity-10 d-flex align-items-center justify-content-center"
+                 style="width:48px;height:48px;flex-shrink:0;">
+                <i class="bi @Icon text-@Color fs-5"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string Value { get; set; } = "0";
+    [Parameter] public string Icon { get; set; } = "bi-circle";
+    [Parameter] public string Color { get; set; } = "primary";
+    [Parameter] public string? Subtitle { get; set; }
+}

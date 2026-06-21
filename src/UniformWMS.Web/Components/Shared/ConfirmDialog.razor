@@ -1,0 +1,55 @@
+@if (IsVisible)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>@Title
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">@Message</p>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="Cancel">
+                        <i class="bi bi-x me-1"></i>Hủy
+                    </button>
+                    <button class="btn btn-@ConfirmType btn-sm" @onclick="Confirm" disabled="@_busy">
+                        @if (_busy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        else
+                        {
+                            <i class="bi @ConfirmIcon me-1"></i>
+                        }
+                        @ConfirmText
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string Title { get; set; } = "Xác nhận";
+    [Parameter] public string Message { get; set; } = "Bạn có chắc chắn muốn thực hiện thao tác này?";
+    [Parameter] public string ConfirmText { get; set; } = "Xác nhận";
+    [Parameter] public string ConfirmType { get; set; } = "danger"; // danger, primary, warning
+    [Parameter] public string ConfirmIcon { get; set; } = "bi-check";
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private bool _busy;
+
+    private async Task Confirm()
+    {
+        _busy = true;
+        await OnConfirm.InvokeAsync();
+        _busy = false;
+    }
+
+    private async Task Cancel() => await OnCancel.InvokeAsync();
+}

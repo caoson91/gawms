@@ -1,0 +1,110 @@
+@page "/login"
+@layout EmptyLayout
+@inject AuthApiService AuthService
+@inject JwtAuthStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<PageTitle>Đăng nhập - UniformWMS</PageTitle>
+
+<div class="min-vh-100 d-flex align-items-center justify-content-center bg-light">
+    <div class="card shadow-sm border-0" style="width:100%;max-width:420px;">
+        <div class="card-body p-5">
+            <!-- Logo -->
+            <div class="text-center mb-4">
+                <div class="d-inline-flex align-items-center justify-content-center bg-primary rounded-3 mb-3"
+                     style="width:60px;height:60px;">
+                    <i class="bi bi-box-seam text-white fs-3"></i>
+                </div>
+                <h4 class="fw-bold mb-1">UniformWMS</h4>
+                <p class="text-muted small mb-0">Hệ thống quản lý kho đồng phục</p>
+            </div>
+
+            <AlertMessage Message="@_errorMessage" Type="danger" />
+
+            <EditForm Model="_model" OnValidSubmit="HandleLogin">
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Tên đăng nhập</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0">
+                            <i class="bi bi-person text-muted"></i>
+                        </span>
+                        <InputText @bind-Value="_model.Username"
+                                   class="form-control border-start-0 ps-0"
+                                   placeholder="Nhập tên đăng nhập"
+                                   autocomplete="username" />
+                    </div>
+                    <ValidationMessage For="() => _model.Username" class="text-danger small" />
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-semibold small">Mật khẩu</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0">
+                            <i class="bi bi-lock text-muted"></i>
+                        </span>
+                        <InputText @bind-Value="_model.Password"
+                                   type="@(_showPwd ? "text" : "password")"
+                                   class="form-control border-start-0 border-end-0 ps-0"
+                                   placeholder="Nhập mật khẩu"
+                                   autocomplete="current-password" />
+                        <button type="button" class="input-group-text bg-light"
+                                @onclick="() => _showPwd = !_showPwd">
+                            <i class="bi @(_showPwd ? "bi-eye-slash" : "bi-eye") text-muted"></i>
+                        </button>
+                    </div>
+                    <ValidationMessage For="() => _model.Password" class="text-danger small" />
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 fw-semibold" disabled="@_loading">
+                    @if (_loading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Đang đăng nhập...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-box-arrow-in-right me-2"></i>
+                        <span>Đăng nhập</span>
+                    }
+                </button>
+            </EditForm>
+
+            <div class="text-center mt-4">
+                <small class="text-muted">
+                    Mặc định: <strong>admin</strong> / <strong>Admin@123</strong>
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+
+    private readonly LoginRequest _model = new();
+    private bool _loading;
+    private bool _showPwd;
+    private string? _errorMessage;
+
+    private async Task HandleLogin()
+    {
+        _loading = true;
+        _errorMessage = null;
+
+        var (success, error) = await AuthService.LoginAsync(_model);
+
+        if (success)
+        {
+            AuthStateProvider.NotifyAuthStateChanged();
+            Nav.NavigateTo(ReturnUrl ?? "/", forceLoad: false);
+        }
+        else
+        {
+            _errorMessage = error;
+        }
+
+        _loading = false;
+    }
+}

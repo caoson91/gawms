@@ -1,0 +1,227 @@
+@page "/uniforms"
+@attribute [Authorize]
+@inject UniformItemApiService UniformSvc
+@inject NavigationManager Nav
+
+<PageTitle>Mặt hàng đồng phục - UniformWMS</PageTitle>
+
+<PageHeader Title="Mặt hàng đồng phục" Subtitle="Quản lý danh sách mặt hàng" Icon="bi-shirt">
+    <Actions>
+        <a href="/uniforms/create" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i>Thêm mặt hàng
+        </a>
+    </Actions>
+</PageHeader>
+
+<AlertMessage Message="@_message" Type="@_messageType" />
+
+<!-- Search & Filter Bar -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light border-end-0">
+                        <i class="bi bi-search text-muted"></i>
+                    </span>
+                    <input type="text" class="form-control border-start-0 ps-0"
+                           placeholder="Tìm theo mã hoặc tên..."
+                           @bind="_search" @bind:event="oninput"
+                           @onkeyup="OnSearchKeyUp" />
+                    @if (!string.IsNullOrEmpty(_search))
+                    {
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="ClearSearch">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    }
+                </div>
+            </div>
+            <div class="col-auto ms-auto">
+                <span class="text-muted small">
+                    <i class="bi bi-box-seam me-1"></i>@(_result?.TotalCount ?? 0) mặt hàng
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="card border-0 shadow-sm">
+    <LoadingSpinner IsLoading="_loading" />
+    @if (!_loading)
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light border-bottom">
+                    <tr>
+                        <th style="width:130px;">Mã hàng</th>
+                        <th>Tên mặt hàng</th>
+                        <th>Danh mục</th>
+                        <th>Size</th>
+                        <th>Màu sắc</th>
+                        <th class="text-end">Tồn kho</th>
+                        <th class="text-end">Đơn giá</th>
+                        <th class="text-center">Trạng thái</th>
+                        <th class="text-center" style="width:100px;">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_result?.Items.Any() == true)
+                    {
+                        @foreach (var item in _result.Items)
+                        {
+                            <tr>
+                                <td><code class="text-dark fw-semibold">@item.ItemCode</code></td>
+                                <td>
+                                    <div class="fw-semibold">@item.Name</div>
+                                    @if (item.IsLowStock)
+                                    {
+                                        <small class="text-warning">
+                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>Tồn kho thấp
+                                        </small>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary">
+                                        @item.CategoryName
+                                    </span>
+                                </td>
+                                <td>@item.SizeName</td>
+                                <td>
+                                    <span class="d-flex align-items-center gap-1">
+                                        <span class="rounded-circle border"
+                                              style="width:14px;height:14px;background:@item.Color.ToLower();display:inline-block;">
+                                        </span>
+                                        @item.Color
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="badge @(item.IsLowStock ? "bg-danger" : "bg-success")">
+                                        @item.CurrentStock
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    @(item.UnitPrice.HasValue
+                                        ? item.UnitPrice.Value.ToString("N0") + "đ"
+                                        : "—")
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge @(item.Status == 1 ? "bg-success bg-opacity-10 text-success" : "bg-secondary bg-opacity-10 text-secondary")">
+                                        @(item.Status == 1 ? "Đang dùng" : "Ngừng dùng")
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <div class="d-flex gap-1 justify-content-center">
+                                        <a href="/uniforms/@item.Id" class="btn btn-sm btn-outline-primary"
+                                           title="Chi tiết">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <a href="/uniforms/@item.Id/edit" class="btn btn-sm btn-outline-secondary"
+                                           title="Chỉnh sửa">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-danger" title="Xóa"
+                                                @onclick="() => ConfirmDelete(item)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-5">
+                                <i class="bi bi-inbox fs-2 d-block mb-2 opacity-25"></i>
+                                Không có dữ liệu
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-footer bg-transparent">
+            <PaginationBar CurrentPage="_page" PageSize="_pageSize"
+                           TotalCount="@(_result?.TotalCount ?? 0)"
+                           OnPageChanged="LoadPage" />
+        </div>
+    }
+</div>
+
+<ConfirmDialog IsVisible="_showConfirm"
+               Title="Xóa mặt hàng"
+               Message="@($"Bạn có chắc muốn xóa mặt hàng '{_deleteTarget?.Name}'?")"
+               ConfirmText="Xóa"
+               ConfirmType="danger"
+               ConfirmIcon="bi-trash"
+               OnConfirm="ExecuteDelete"
+               OnCancel="() => _showConfirm = false" />
+
+@code {
+    private bool _loading = true;
+    private PagedResult<UniformItemDto>? _result;
+    private int _page = 1;
+    private const int _pageSize = 20;
+    private string _search = string.Empty;
+    private string? _message;
+    private string _messageType = "success";
+    private bool _showConfirm;
+    private UniformItemDto? _deleteTarget;
+    private System.Timers.Timer? _debounce;
+
+    protected override async Task OnInitializedAsync() => await LoadPage(1);
+
+    private async Task LoadPage(int page)
+    {
+        _loading = true;
+        _page = page;
+        _result = await UniformSvc.GetPagedAsync(_page, _pageSize, _search);
+        _loading = false;
+    }
+
+    private void OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        _debounce?.Dispose();
+        _debounce = new System.Timers.Timer(400);
+        _debounce.Elapsed += async (_, _) =>
+        {
+            _debounce?.Dispose();
+            await InvokeAsync(() => LoadPage(1));
+        };
+        _debounce.AutoReset = false;
+        _debounce.Start();
+    }
+
+    private async Task ClearSearch()
+    {
+        _search = string.Empty;
+        await LoadPage(1);
+    }
+
+    private void ConfirmDelete(UniformItemDto item)
+    {
+        _deleteTarget = item;
+        _showConfirm = true;
+    }
+
+    private async Task ExecuteDelete()
+    {
+        _showConfirm = false;
+        if (_deleteTarget == null) return;
+        var res = await UniformSvc.DeleteAsync(_deleteTarget.Id);
+        if (res?.Success == true)
+        {
+            _message = "Xóa mặt hàng thành công.";
+            _messageType = "success";
+            await LoadPage(_page);
+        }
+        else
+        {
+            _message = res?.Errors.FirstOrDefault() ?? "Xóa thất bại.";
+            _messageType = "danger";
+        }
+        _deleteTarget = null;
+    }
+}

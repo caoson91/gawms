@@ -1,0 +1,21 @@
+@if (IsLoading)
+{
+    <div class="@(Overlay ? "loading-overlay" : "d-flex justify-content-center align-items-center py-5")">
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status" style="width:@Size;height:@Size;">
+                <span class="visually-hidden">Đang tải...</span>
+            </div>
+            @if (!string.IsNullOrEmpty(Text))
+            {
+                <div class="mt-2 text-muted small">@Text</div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public string Text { get; set; } = "Đang tải dữ liệu...";
+    [Parameter] public string Size { get; set; } = "2rem";
+    [Parameter] public bool Overlay { get; set; } = false;
+}

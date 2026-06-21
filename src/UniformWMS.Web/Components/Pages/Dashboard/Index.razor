@@ -1,0 +1,128 @@
+@page "/"
+@attribute [Authorize]
+@inject UniformItemApiService UniformSvc
+@inject IssuanceOrderApiService IssuanceSvc
+@inject ReturnOrderApiService ReturnSvc
+@inject PurchaseOrderApiService PurchaseSvc
+
+<PageTitle>Dashboard - UniformWMS</PageTitle>
+
+<PageHeader Title="Dashboard" Subtitle="Tổng quan hệ thống" Icon="bi-speedometer2" />
+
+<LoadingSpinner IsLoading="_loading" />
+
+@if (!_loading)
+{
+    <!-- Stats Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-xl-3 col-md-6">
+            <StatCard Title="Tổng mặt hàng" Value="@_totalItems.ToString()"
+                      Icon="bi-shirt" Color="primary" Subtitle="mặt hàng đồng phục" />
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <StatCard Title="Cảnh báo tồn kho" Value="@_lowStockCount.ToString()"
+                      Icon="bi-exclamation-triangle" Color="warning" Subtitle="dưới mức tối thiểu" />
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <StatCard Title="Phiếu cấp phát tháng này" Value="@_issuanceCount.ToString()"
+                      Icon="bi-box-arrow-up" Color="success" Subtitle="phiếu đã tạo" />
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <StatCard Title="Phiếu thu hồi tháng này" Value="@_returnCount.ToString()"
+                      Icon="bi-box-arrow-in-down" Color="info" Subtitle="phiếu đã tạo" />
+        </div>
+    </div>
+
+    <!-- Low Stock Alert -->
+    @if (_lowStockItems.Any())
+    {
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-warning bg-opacity-10 border-warning border-opacity-25 d-flex align-items-center gap-2">
+                <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                <span class="fw-semibold">Cảnh báo tồn kho thấp</span>
+                <span class="badge bg-warning text-dark ms-1">@_lowStockItems.Count</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Mã hàng</th>
+                                <th>Tên mặt hàng</th>
+                                <th>Danh mục</th>
+                                <th>Size / Màu</th>
+                                <th class="text-end">Tồn kho</th>
+                                <th class="text-end">Tối thiểu</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in _lowStockItems.Take(10))
+                            {
+                                <tr>
+                                    <td><code class="text-dark">@item.ItemCode</code></td>
+                                    <td class="fw-semibold">@item.Name</td>
+                                    <td><span class="badge bg-secondary bg-opacity-10 text-secondary">@item.CategoryName</span></td>
+                                    <td>@item.SizeName / @item.Color</td>
+                                    <td class="text-end">
+                                        <span class="badge bg-danger">@item.CurrentStock</span>
+                                    </td>
+                                    <td class="text-end text-muted">@item.MinStockLevel</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Quick Links -->
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="fw-semibold mb-3">
+                        <i class="bi bi-lightning-fill text-primary me-2"></i>Thao tác nhanh
+                    </h6>
+                    <div class="d-grid gap-2">
+                        <a href="/issuances/create" class="btn btn-outline-primary btn-sm text-start">
+                            <i class="bi bi-plus-lg me-2"></i>Tạo phiếu cấp phát
+                        </a>
+                        <a href="/returns/create" class="btn btn-outline-info btn-sm text-start">
+                            <i class="bi bi-plus-lg me-2"></i>Tạo phiếu thu hồi
+                        </a>
+                        <a href="/purchases/create" class="btn btn-outline-success btn-sm text-start">
+                            <i class="bi bi-plus-lg me-2"></i>Tạo đơn nhập hàng
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private int _totalItems, _lowStockCount, _issuanceCount, _returnCount;
+    private List<UniformItemDto> _lowStockItems = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var items = await UniformSvc.GetPagedAsync(1, 1);
+            _totalItems = items?.TotalCount ?? 0;
+
+            var lowStock = await UniformSvc.GetLowStockAsync();
+            _lowStockItems = lowStock?.ToList() ?? new();
+            _lowStockCount = _lowStockItems.Count;
+
+            var issuances = await IssuanceSvc.GetPagedAsync(1, 1);
+            _issuanceCount = issuances?.TotalCount ?? 0;
+
+            var returns = await ReturnSvc.GetPagedAsync(1, 1);
+            _returnCount = returns?.TotalCount ?? 0;
+        }
+        finally { _loading = false; }
+    }
+}

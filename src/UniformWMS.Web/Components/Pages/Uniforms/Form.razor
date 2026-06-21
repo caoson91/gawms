@@ -1,0 +1,210 @@
+@page "/uniforms/create"
+@page "/uniforms/{Id:guid}/edit"
+@attribute [Authorize]
+@inject UniformItemApiService UniformSvc
+@inject CategoryApiService CategorySvc
+@inject NavigationManager Nav
+
+<PageTitle>@(IsEdit ? "Chỉnh sửa mặt hàng" : "Thêm mặt hàng") - UniformWMS</PageTitle>
+
+<PageHeader Title="@(IsEdit ? "Chỉnh sửa mặt hàng" : "Thêm mặt hàng mới")"
+            Icon="@(IsEdit ? "bi-pencil" : "bi-plus-lg")">
+    <Actions>
+        <a href="/uniforms" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Quay lại
+        </a>
+    </Actions>
+</PageHeader>
+
+<AlertMessage Message="@_error" Type="danger" />
+
+<LoadingSpinner IsLoading="_loading" />
+
+@if (!_loading)
+{
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <EditForm Model="_form" OnValidSubmit="HandleSubmit">
+                        <DataAnnotationsValidator />
+
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold small required">Mã hàng</label>
+                                <InputText @bind-Value="_form.ItemCode" class="form-control"
+                                           placeholder="VD: AO-M-WHITE" disabled="@IsEdit" />
+                                <ValidationMessage For="() => _form.ItemCode" class="text-danger small" />
+                            </div>
+
+                            <div class="col-md-8">
+                                <label class="form-label fw-semibold small required">Tên mặt hàng</label>
+                                <InputText @bind-Value="_form.Name" class="form-control"
+                                           placeholder="Nhập tên mặt hàng..." />
+                                <ValidationMessage For="() => _form.Name" class="text-danger small" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small required">Danh mục</label>
+                                <InputSelect @bind-Value="_form.CategoryId" class="form-select">
+                                    <option value="">-- Chọn danh mục --</option>
+                                    @foreach (var cat in _categories)
+                                    {
+                                        <option value="@cat.Id">@cat.Name</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="() => _form.CategoryId" class="text-danger small" />
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold small required">Size</label>
+                                <InputSelect @bind-Value="_form.Size" class="form-select">
+                                    <option value="0">-- Chọn size --</option>
+                                    <option value="1">XS</option>
+                                    <option value="2">S</option>
+                                    <option value="3">M</option>
+                                    <option value="4">L</option>
+                                    <option value="5">XL</option>
+                                    <option value="6">XXL</option>
+                                    <option value="7">XXXL</option>
+                                    <option value="10">Free Size</option>
+                                </InputSelect>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold small required">Màu sắc</label>
+                                <InputText @bind-Value="_form.Color" class="form-control"
+                                           placeholder="VD: Trắng, Đen..." />
+                                <ValidationMessage For="() => _form.Color" class="text-danger small" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold small">Đơn giá (VNĐ)</label>
+                                <InputNumber @bind-Value="_form.UnitPrice" class="form-control"
+                                             placeholder="0" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold small">Tồn kho tối thiểu</label>
+                                <InputNumber @bind-Value="_form.MinStockLevel" class="form-control" />
+                            </div>
+
+                            @if (IsEdit)
+                            {
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold small">Trạng thái</label>
+                                    <InputSelect @bind-Value="_editForm!.Status" class="form-select">
+                                        <option value="1">Đang dùng</option>
+                                        <option value="2">Ngừng dùng</option>
+                                        <option value="3">Hết hàng</option>
+                                    </InputSelect>
+                                </div>
+                            }
+
+                            <div class="col-12">
+                                <label class="form-label fw-semibold small">Mô tả</label>
+                                <InputTextArea @bind-Value="_form.Description" class="form-control"
+                                              rows="3" placeholder="Mô tả thêm về mặt hàng..." />
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 justify-content-end mt-4 pt-3 border-top">
+                            <a href="/uniforms" class="btn btn-outline-secondary">Hủy</a>
+                            <button type="submit" class="btn btn-primary" disabled="@_saving">
+                                @if (_saving)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-check-lg me-1"></i>
+                                }
+                                @(IsEdit ? "Cập nhật" : "Tạo mặt hàng")
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private bool IsEdit => Id.HasValue;
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+
+    private List<CategoryDto> _categories = new();
+    private CreateUniformItemRequest _form = new();
+    private UpdateUniformItemRequest? _editForm;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = (await CategorySvc.GetAllAsync())?.ToList() ?? new();
+
+        if (IsEdit)
+        {
+            var item = await UniformSvc.GetByIdAsync(Id!.Value);
+            if (item != null)
+            {
+                _editForm = new UpdateUniformItemRequest
+                {
+                    Name = item.Name,
+                    Description = item.Description,
+                    CategoryId = item.CategoryId,
+                    Size = item.Size,
+                    Color = item.Color,
+                    UnitPrice = item.UnitPrice,
+                    MinStockLevel = item.MinStockLevel,
+                    Status = item.Status
+                };
+                // Sync to _form for shared fields in template
+                _form.Name = item.Name;
+                _form.Description = item.Description;
+                _form.CategoryId = item.CategoryId;
+                _form.Size = item.Size;
+                _form.Color = item.Color;
+                _form.UnitPrice = item.UnitPrice;
+                _form.MinStockLevel = item.MinStockLevel;
+            }
+        }
+        _loading = false;
+    }
+
+    private async Task HandleSubmit()
+    {
+        _saving = true;
+        _error = null;
+
+        ApiResponse<UniformItemDto>? res;
+        if (IsEdit)
+        {
+            var req = new UpdateUniformItemRequest
+            {
+                Name = _form.Name,
+                Description = _form.Description,
+                CategoryId = _form.CategoryId,
+                Size = _form.Size,
+                Color = _form.Color,
+                UnitPrice = _form.UnitPrice,
+                MinStockLevel = _form.MinStockLevel,
+                Status = _editForm?.Status ?? 1
+            };
+            res = await UniformSvc.UpdateAsync(Id!.Value, req);
+        }
+        else
+        {
+            res = await UniformSvc.CreateAsync(_form);
+        }
+
+        if (res?.Success == true)
+            Nav.NavigateTo("/uniforms");
+        else
+            _error = res?.Errors.FirstOrDefault() ?? "Có lỗi xảy ra.";
+
+        _saving = false;
+    }
+}

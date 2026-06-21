@@ -1,0 +1,259 @@
+@page "/admin/roles"
+@attribute [Authorize]
+@inject RoleApiService RoleSvc
+
+<PageTitle>Vai trò & Quyền - UniformWMS</PageTitle>
+<PageHeader Title="Vai trò & Quyền hạn" Subtitle="Quản lý vai trò và phân quyền hệ thống" Icon="bi-shield-lock">
+    <Actions>
+        <button class="btn btn-primary btn-sm" @onclick="OpenCreateModal">
+            <i class="bi bi-plus-lg me-1"></i>Tạo vai trò
+        </button>
+    </Actions>
+</PageHeader>
+
+<AlertMessage Message="@_msg" Type="@_msgType" />
+
+<LoadingSpinner IsLoading="_loading" />
+
+@if (!_loading)
+{
+    <div class="row g-3">
+        @foreach (var role in _roles)
+        {
+            <div class="col-md-6 col-xl-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start justify-content-between mb-3">
+                            <div>
+                                <h6 class="fw-bold mb-1">
+                                    <i class="bi bi-shield-fill me-2 text-primary"></i>@role.Name
+                                </h6>
+                                <small class="text-muted">@(role.Description ?? "Không có mô tả")</small>
+                            </div>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-sm btn-outline-secondary" title="Chỉnh sửa"
+                                        @onclick="() => OpenEditModal(role)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                @if (role.Name != "Admin")
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" title="Xóa"
+                                            @onclick="() => ConfirmDelete(role)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-1 mb-2">
+                            <i class="bi bi-key text-muted small"></i>
+                            <small class="text-muted">@role.Permissions.Count quyền</small>
+                        </div>
+                        <div class="d-flex flex-wrap gap-1">
+                            @foreach (var perm in role.Permissions.Take(6))
+                            {
+                                <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:0.65rem;">
+                                    @perm
+                                </span>
+                            }
+                            @if (role.Permissions.Count > 6)
+                            {
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary" style="font-size:0.65rem;">
+                                    +@(role.Permissions.Count - 6) thêm
+                                </span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- Create/Edit Modal -->
+@if (_showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-semibold">
+                        <i class="bi bi-shield-plus me-2 text-primary"></i>
+                        @(_editTarget == null ? "Tạo vai trò mới" : $"Chỉnh sửa: {_editTarget.Name}")
+                    </h5>
+                    <button class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    <AlertMessage Message="@_modalError" Type="danger" />
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold small">Tên vai trò <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" @bind="_rName" placeholder="VD: WarehouseStaff" />
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label fw-semibold small">Mô tả</label>
+                            <input type="text" class="form-control" @bind="_rDescription" placeholder="Mô tả vai trò..." />
+                        </div>
+                    </div>
+
+                    <div class="fw-semibold small mb-3 text-uppercase text-muted" style="letter-spacing:1px;">
+                        <i class="bi bi-key me-1"></i>Phân quyền
+                    </div>
+
+                    @foreach (var module in _permsByModule.Keys.OrderBy(k => k))
+                    {
+                        <div class="mb-3">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <span class="badge bg-dark bg-opacity-75">@module</span>
+                                <button class="btn btn-link btn-sm p-0 text-muted text-decoration-none"
+                                        @onclick="() => ToggleModule(module)">
+                                    <small>Chọn tất cả</small>
+                                </button>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 ps-2">
+                                @foreach (var perm in _permsByModule[module])
+                                {
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox"
+                                               id="perm_@perm.Id"
+                                               checked="@_selectedPerms.Contains(perm.Id)"
+                                               @onchange="e => TogglePerm(perm.Id, (bool)e.Value!)" />
+                                        <label class="form-check-label small" for="perm_@perm.Id">
+                                            @perm.Action
+                                        </label>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                        <hr class="my-2 opacity-25" />
+                    }
+                </div>
+                <div class="modal-footer">
+                    <small class="text-muted me-auto">
+                        <i class="bi bi-key me-1"></i>Đã chọn @_selectedPerms.Count quyền
+                    </small>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="CloseModal">Hủy</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveRole" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi bi-check-lg me-1"></i>Lưu vai trò
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<ConfirmDialog IsVisible="_showConfirm"
+               Title="Xóa vai trò"
+               Message="@($"Bạn có chắc muốn xóa vai trò '{_deleteTarget?.Name}'?")"
+               ConfirmText="Xóa" ConfirmType="danger" ConfirmIcon="bi-trash"
+               OnConfirm="ExecuteDelete"
+               OnCancel="() => _showConfirm = false" />
+
+@code {
+    private bool _loading = true;
+    private List<RoleDto> _roles = new();
+    private List<PermissionDto> _allPerms = new();
+    private Dictionary<string, List<PermissionDto>> _permsByModule = new();
+    private string? _msg; private string _msgType = "success";
+
+    // Modal
+    private bool _showModal, _saving;
+    private string? _modalError;
+    private RoleDto? _editTarget;
+    private string _rName = "", _rDescription = "";
+    private HashSet<Guid> _selectedPerms = new();
+
+    // Delete
+    private bool _showConfirm;
+    private RoleDto? _deleteTarget;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _allPerms = (await RoleSvc.GetPermissionsAsync())?.ToList() ?? new();
+        _permsByModule = _allPerms.GroupBy(p => p.Module)
+            .ToDictionary(g => g.Key, g => g.ToList());
+        await LoadRoles();
+    }
+
+    private async Task LoadRoles()
+    {
+        _loading = true;
+        _roles = (await RoleSvc.GetAllAsync())?.ToList() ?? new();
+        _loading = false;
+    }
+
+    private void OpenCreateModal()
+    {
+        _editTarget = null; _rName = ""; _rDescription = "";
+        _selectedPerms = new(); _modalError = null; _showModal = true;
+    }
+
+    private void OpenEditModal(RoleDto role)
+    {
+        _editTarget = role; _rName = role.Name; _rDescription = role.Description ?? "";
+        _selectedPerms = _allPerms
+            .Where(p => role.Permissions.Contains(p.Code))
+            .Select(p => p.Id).ToHashSet();
+        _modalError = null; _showModal = true;
+    }
+
+    private void CloseModal() => _showModal = false;
+
+    private void TogglePerm(Guid id, bool add)
+    {
+        if (add) _selectedPerms.Add(id); else _selectedPerms.Remove(id);
+    }
+
+    private void ToggleModule(string module)
+    {
+        var perms = _permsByModule[module];
+        bool allSelected = perms.All(p => _selectedPerms.Contains(p.Id));
+        foreach (var p in perms)
+        {
+            if (allSelected) _selectedPerms.Remove(p.Id);
+            else _selectedPerms.Add(p.Id);
+        }
+    }
+
+    private async Task SaveRole()
+    {
+        if (string.IsNullOrWhiteSpace(_rName))
+        {
+            _modalError = "Tên vai trò không được để trống.";
+            return;
+        }
+        _saving = true; _modalError = null;
+        var req = new { Name = _rName, Description = _rDescription, PermissionIds = _selectedPerms.ToList() };
+
+        Models.ApiResponse<RoleDto>? res;
+        if (_editTarget == null)
+            res = await RoleSvc.CreateAsync(req);
+        else
+            res = await RoleSvc.UpdateAsync(_editTarget.Id, req);
+
+        if (res?.Success == true)
+        {
+            _msg = _editTarget == null ? "Tạo vai trò thành công." : "Cập nhật thành công.";
+            _msgType = "success"; _showModal = false;
+            await LoadRoles();
+        }
+        else
+        {
+            _modalError = res?.Errors.FirstOrDefault() ?? "Có lỗi xảy ra.";
+        }
+        _saving = false;
+    }
+
+    private void ConfirmDelete(RoleDto role) { _deleteTarget = role; _showConfirm = true; }
+
+    private async Task ExecuteDelete()
+    {
+        _showConfirm = false;
+        if (_deleteTarget == null) return;
+        var res = await RoleSvc.DeleteAsync(_deleteTarget.Id);
+        _msg = res?.Success == true ? "Xóa vai trò thành công." : res?.Errors.FirstOrDefault() ?? "Lỗi.";
+        _msgType = res?.Success == true ? "success" : "danger";
+        if (res?.Success == true) await LoadRoles();
+        _deleteTarget = null;
+    }
+}

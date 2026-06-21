@@ -1,0 +1,243 @@
+@page "/admin/users"
+@attribute [Authorize]
+@inject UserApiService UserSvc
+@inject RoleApiService RoleSvc
+
+<PageTitle>Quản lý người dùng - UniformWMS</PageTitle>
+<PageHeader Title="Người dùng hệ thống" Subtitle="Quản lý tài khoản và phân quyền" Icon="bi-person-gear">
+    <Actions>
+        <button class="btn btn-primary btn-sm" @onclick="() => OpenCreateModal()">
+            <i class="bi bi-plus-lg me-1"></i>Tạo tài khoản
+        </button>
+    </Actions>
+</PageHeader>
+
+<AlertMessage Message="@_msg" Type="@_msgType" />
+
+<div class="card border-0 shadow-sm">
+    <LoadingSpinner IsLoading="_loading" />
+    @if (!_loading)
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Tài khoản</th><th>Họ tên</th><th>Email</th>
+                        <th>Vai trò</th><th>Đăng nhập lần cuối</th>
+                        <th class="text-center">Trạng thái</th>
+                        <th class="text-center" style="width:90px;">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_result?.Items.Any() == true)
+                    {
+                        @foreach (var u in _result.Items)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
+                                             style="width:32px;height:32px;">
+                                            <i class="bi bi-person text-primary"></i>
+                                        </div>
+                                        <span class="fw-semibold">@u.Username</span>
+                                    </div>
+                                </td>
+                                <td>@u.FullName</td>
+                                <td class="text-muted small">@u.Email</td>
+                                <td>
+                                    @foreach (var role in u.Roles)
+                                    {
+                                        <span class="badge bg-primary bg-opacity-10 text-primary me-1">@role</span>
+                                    }
+                                </td>
+                                <td class="text-muted small">@(u.LastLoginAt?.ToString("dd/MM/yyyy HH:mm") ?? "Chưa đăng nhập")</td>
+                                <td class="text-center">
+                                    <span class="badge @(u.Status == 1 ? "bg-success bg-opacity-10 text-success" : "bg-danger bg-opacity-10 text-danger")">
+                                        @(u.Status == 1 ? "Hoạt động" : "Bị khóa")
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-outline-secondary" title="Sửa"
+                                            @onclick="() => OpenEditModal(u)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="7" class="text-center text-muted py-5">Không có dữ liệu</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer bg-transparent">
+            <PaginationBar CurrentPage="_page" PageSize="20"
+                           TotalCount="@(_result?.TotalCount ?? 0)"
+                           OnPageChanged="LoadPage" />
+        </div>
+    }
+</div>
+
+<!-- Create/Edit Modal -->
+@if (_showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-semibold">
+                        <i class="bi bi-person-plus me-2 text-primary"></i>
+                        @(_editTarget == null ? "Tạo tài khoản mới" : "Chỉnh sửa tài khoản")
+                    </h5>
+                    <button class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    <AlertMessage Message="@_modalError" Type="danger" />
+                    <div class="row g-3">
+                        @if (_editTarget == null)
+                        {
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Tên đăng nhập <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" @bind="_uUsername" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Mật khẩu <span class="text-danger">*</span></label>
+                                <input type="password" class="form-control" @bind="_uPassword" />
+                            </div>
+                        }
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Họ tên <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" @bind="_uFullName" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Email <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control" @bind="_uEmail" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Số điện thoại</label>
+                            <input type="text" class="form-control" @bind="_uPhone" />
+                        </div>
+                        @if (_editTarget != null)
+                        {
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Trạng thái</label>
+                                <select class="form-select" @bind="_uStatus">
+                                    <option value="1">Hoạt động</option>
+                                    <option value="2">Không hoạt động</option>
+                                    <option value="3">Bị khóa</option>
+                                </select>
+                            </div>
+                        }
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small">Vai trò</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var role in _roles)
+                                {
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="role_@role.Id"
+                                               checked="@_selectedRoles.Contains(role.Id)"
+                                               @onchange="e => ToggleRole(role.Id, (bool)e.Value!)" />
+                                        <label class="form-check-label" for="role_@role.Id">@role.Name</label>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="CloseModal">Hủy</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveUser" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi bi-check-lg me-1"></i>Lưu
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private PagedResult<UserDto>? _result;
+    private int _page = 1;
+    private string? _msg; private string _msgType = "success";
+    private List<RoleDto> _roles = new();
+
+    // Modal state
+    private bool _showModal;
+    private bool _saving;
+    private string? _modalError;
+    private UserDto? _editTarget;
+    private string _uUsername = "", _uPassword = "", _uFullName = "", _uEmail = "", _uPhone = "";
+    private int _uStatus = 1;
+    private HashSet<Guid> _selectedRoles = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _roles = (await RoleSvc.GetAllAsync())?.ToList() ?? new();
+        await LoadPage(1);
+    }
+
+    private async Task LoadPage(int p)
+    {
+        _loading = true; _page = p;
+        _result = await UserSvc.GetPagedAsync(p, 20);
+        _loading = false;
+    }
+
+    private void OpenCreateModal()
+    {
+        _editTarget = null;
+        _uUsername = _uPassword = _uFullName = _uEmail = _uPhone = "";
+        _uStatus = 1; _selectedRoles = new(); _modalError = null; _showModal = true;
+    }
+
+    private void OpenEditModal(UserDto u)
+    {
+        _editTarget = u;
+        _uFullName = u.FullName; _uEmail = u.Email; _uPhone = u.PhoneNumber ?? "";
+        _uStatus = u.Status;
+        _selectedRoles = _roles.Where(r => u.Roles.Contains(r.Name)).Select(r => r.Id).ToHashSet();
+        _modalError = null; _showModal = true;
+    }
+
+    private void CloseModal() => _showModal = false;
+    private void ToggleRole(Guid id, bool add) { if (add) _selectedRoles.Add(id); else _selectedRoles.Remove(id); }
+
+    private async Task SaveUser()
+    {
+        _saving = true; _modalError = null;
+        object req;
+        Models.ApiResponse<UserDto>? res;
+
+        if (_editTarget == null)
+        {
+            req = new { Username = _uUsername, Password = _uPassword, FullName = _uFullName,
+                        Email = _uEmail, PhoneNumber = _uPhone,
+                        RoleIds = _selectedRoles.ToList() };
+            res = await UserSvc.CreateAsync(req);
+        }
+        else
+        {
+            req = new { FullName = _uFullName, Email = _uEmail, PhoneNumber = _uPhone,
+                        Status = _uStatus, RoleIds = _selectedRoles.ToList() };
+            res = await UserSvc.UpdateAsync(_editTarget.Id, req);
+        }
+
+        if (res?.Success == true)
+        {
+            _msg = _editTarget == null ? "Tạo tài khoản thành công." : "Cập nhật thành công.";
+            _msgType = "success";
+            _showModal = false;
+            await LoadPage(_page);
+        }
+        else
+        {
+            _modalError = res?.Errors.FirstOrDefault() ?? "Có lỗi xảy ra.";
+        }
+        _saving = false;
+    }
+}

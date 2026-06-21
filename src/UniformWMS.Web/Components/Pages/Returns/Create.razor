@@ -1,0 +1,163 @@
+@page "/returns/create"
+@attribute [Authorize]
+@inject ReturnOrderApiService ReturnSvc
+@inject UniformItemApiService UniformSvc
+@inject EmployeeApiService EmployeeSvc
+@inject NavigationManager Nav
+
+<PageTitle>Tạo phiếu thu hồi - UniformWMS</PageTitle>
+<PageHeader Title="Tạo phiếu thu hồi mới" Icon="bi-box-arrow-in-down">
+    <Actions>
+        <a href="/returns" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Quay lại
+        </a>
+    </Actions>
+</PageHeader>
+
+<AlertMessage Message="@_error" Type="danger" />
+
+<div class="row g-3">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header fw-semibold bg-transparent">Thông tin phiếu</div>
+            <div class="card-body">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold small">Mô tả / Ghi chú</label>
+                    <textarea class="form-control" rows="2" placeholder="Mô tả phiếu thu hồi..."
+                              @bind="_description"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header d-flex align-items-center justify-content-between bg-transparent fw-semibold">
+                <span>Chi tiết thu hồi</span>
+                <button class="btn btn-outline-primary btn-sm" @onclick="AddLine">
+                    <i class="bi bi-plus-lg me-1"></i>Thêm dòng
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:30px;">#</th>
+                                <th>Nhân viên</th>
+                                <th>Mặt hàng</th>
+                                <th style="width:100px;">Số lượng</th>
+                                <th style="width:140px;">Tình trạng</th>
+                                <th>Ghi chú</th>
+                                <th style="width:50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < _lines.Count; i++)
+                            {
+                                var idx = i;
+                                var line = _lines[idx];
+                                <tr>
+                                    <td class="text-muted small">@(idx + 1)</td>
+                                    <td>
+                                        <select class="form-select form-select-sm" @bind="line.EmployeeId">
+                                            <option value="">-- Chọn nhân viên --</option>
+                                            @foreach (var emp in _employees)
+                                            {
+                                                <option value="@emp.Id">[@emp.EmployeeCode] @emp.FullName</option>
+                                            }
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm" @bind="line.ItemId">
+                                            <option value="">-- Chọn mặt hàng --</option>
+                                            @foreach (var item in _items)
+                                            {
+                                                <option value="@item.Id">[@item.ItemCode] @item.Name (@item.SizeName/@item.Color)</option>
+                                            }
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm" min="1"
+                                               @bind="line.Quantity" />
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm" @bind="line.Condition">
+                                            <option value="1">Mới</option>
+                                            <option value="2">Tốt</option>
+                                            <option value="3">Cũ / Mòn</option>
+                                            <option value="4">Hỏng</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm"
+                                               placeholder="Ghi chú..." @bind="line.Notes" />
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => RemoveLine(idx)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                            @if (!_lines.Any())
+                            {
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">
+                                        Chưa có dòng nào. Nhấn "Thêm dòng" để bắt đầu.
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent d-flex justify-content-end gap-2">
+                <a href="/returns" class="btn btn-outline-secondary btn-sm">Hủy</a>
+                <button class="btn btn-primary btn-sm" @onclick="HandleSubmit" disabled="@_saving">
+                    @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    <i class="bi bi-check-lg me-1"></i>Tạo phiếu
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool _saving;
+    private string? _error;
+    private string _description = "";
+    private List<ReturnLineRequest> _lines = new();
+    private List<EmployeeDto> _employees = new();
+    private List<UniformItemDto> _items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var emps = await EmployeeSvc.GetPagedAsync(1, 200);
+        _employees = emps?.Items.ToList() ?? new();
+        var items = await UniformSvc.GetPagedAsync(1, 500);
+        _items = items?.Items.ToList() ?? new();
+    }
+
+    private void AddLine() => _lines.Add(new ReturnLineRequest { Quantity = 1, Condition = 2 });
+    private void RemoveLine(int idx) => _lines.RemoveAt(idx);
+
+    private async Task HandleSubmit()
+    {
+        if (!_lines.Any()) { _error = "Phải có ít nhất một dòng thu hồi."; return; }
+        if (_lines.Any(l => l.EmployeeId == Guid.Empty || l.ItemId == Guid.Empty))
+        {
+            _error = "Vui lòng chọn đầy đủ nhân viên và mặt hàng."; return;
+        }
+        _saving = true; _error = null;
+        var res = await ReturnSvc.CreateAsync(new CreateReturnOrderRequest
+        {
+            Description = _description,
+            Lines = _lines
+        });
+        if (res?.Success == true) Nav.NavigateTo("/returns");
+        else _error = res?.Errors.FirstOrDefault() ?? "Có lỗi xảy ra.";
+        _saving = false;
+    }
+}

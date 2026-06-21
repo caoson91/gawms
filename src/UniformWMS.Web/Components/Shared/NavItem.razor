@@ -1,0 +1,14 @@
+@inject NavigationManager Nav
+
+<NavLink href="@Href" Match="@(Href == "/" ? NavLinkMatch.All : NavLinkMatch.Prefix)"
+         class="nav-link-custom d-flex align-items-center gap-2 px-3 py-2 text-white text-decoration-none rounded mx-2 mb-1"
+         ActiveClass="bg-primary">
+    <i class="bi @Icon" style="width:20px;text-align:center;"></i>
+    <span style="font-size:0.875rem;">@Label</span>
+</NavLink>
+
+@code {
+    [Parameter, EditorRequired] public string Href { get; set; } = "/";
+    [Parameter, EditorRequired] public string Icon { get; set; } = "bi-circle";
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+}

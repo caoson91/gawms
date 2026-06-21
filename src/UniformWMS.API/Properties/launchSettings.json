@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "UniformWMS.API": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:53474;http://localhost:53475"
+    }
+  }
+}
