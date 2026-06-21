@@ -132,8 +132,13 @@ public class JwtAuthStateProvider : AuthenticationStateProvider
 {
     private readonly ILocalStorageService _storage;
     private readonly AuthApiService _authService;
+
     private static readonly AuthenticationState Anonymous =
         new(new ClaimsPrincipal(new ClaimsIdentity()));
+
+    // Cache state sau khi đã load lần đầu thành công
+    private AuthenticationState? _cachedState;
+    private bool _initialized = false;
 
     public JwtAuthStateProvider(ILocalStorageService storage, AuthApiService authService)
     {
@@ -143,31 +148,73 @@ public class JwtAuthStateProvider : AuthenticationStateProvider
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
-        var token = await _storage.GetItemAsStringAsync("access_token");
-        if (string.IsNullOrEmpty(token)) return Anonymous;
+        // Trả về cached state nếu đã khởi tạo (tránh gọi JS nhiều lần)
+        if (_initialized && _cachedState != null)
+            return _cachedState;
 
         try
         {
+            var token = await _storage.GetItemAsStringAsync("access_token");
+
+            if (string.IsNullOrEmpty(token))
+            {
+                _initialized = true;
+                _cachedState = Anonymous;
+                return Anonymous;
+            }
+
             var handler = new JwtSecurityTokenHandler();
             var jwt = handler.ReadJwtToken(token);
 
-            // Check expiry, try refresh if expired
+            // Nếu token sắp hết hạn (< 1 phút) thì thử refresh
             if (jwt.ValidTo < DateTime.UtcNow.AddMinutes(1))
             {
                 var refreshed = await _authService.TryRefreshAsync();
-                if (!refreshed) return Anonymous;
+                if (!refreshed)
+                {
+                    _initialized = true;
+                    _cachedState = Anonymous;
+                    return Anonymous;
+                }
                 token = await _storage.GetItemAsStringAsync("access_token");
-                if (string.IsNullOrEmpty(token)) return Anonymous;
+                if (string.IsNullOrEmpty(token))
+                {
+                    _initialized = true;
+                    _cachedState = Anonymous;
+                    return Anonymous;
+                }
                 jwt = handler.ReadJwtToken(token);
             }
 
             var claims = jwt.Claims.ToList();
             var identity = new ClaimsIdentity(claims, "jwt");
-            return new AuthenticationState(new ClaimsPrincipal(identity));
+            var state = new AuthenticationState(new ClaimsPrincipal(identity));
+
+            _initialized = true;
+            _cachedState = state;
+            return state;
         }
-        catch { return Anonymous; }
+        catch
+        {
+            // JS Interop chưa sẵn sàng (prerender) hoặc token lỗi
+            // → Trả về Anonymous nhưng KHÔNG set _initialized
+            // để lần sau khi JS sẵn sàng sẽ thử lại
+            return Anonymous;
+        }
     }
 
-    public void NotifyAuthStateChanged() =>
+    public void NotifyAuthStateChanged()
+    {
+        // Reset cache để lần sau đọc lại từ storage
+        _initialized = false;
+        _cachedState = null;
         NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+    }
+
+    public void MarkAsLoggedOut()
+    {
+        _initialized = true;
+        _cachedState = Anonymous;
+        NotifyAuthenticationStateChanged(Task.FromResult(Anonymous));
+    }
 }

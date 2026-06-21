@@ -111,7 +111,7 @@
     private async Task HandleLogout()
     {
         await AuthService.LogoutAsync();
-        AuthStateProvider.NotifyAuthStateChanged();
-        Nav.NavigateTo("/login", forceLoad: true);
+        AuthStateProvider.MarkAsLoggedOut();   // Cập nhật state ngay, không cần đọc lại storage
+        Nav.NavigateTo("/login", forceLoad: false);
     }
 }

@@ -97,14 +97,16 @@
 
         if (success)
         {
+            // Reset cache trong AuthStateProvider rồi mới navigate
+            // forceLoad: false để giữ SignalR circuit, Blazor tự re-evaluate auth state
             AuthStateProvider.NotifyAuthStateChanged();
-            Nav.NavigateTo(ReturnUrl ?? "/", forceLoad: false);
+            var target = string.IsNullOrWhiteSpace(ReturnUrl) ? "/" : ReturnUrl;
+            Nav.NavigateTo(target, forceLoad: false);
         }
         else
         {
             _errorMessage = error;
+            _loading = false;
         }
-
-        _loading = false;
     }
 }

@@ -1,4 +1,5 @@
 using Blazored.LocalStorage;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components.Authorization;
 using UniformWMS.Web.Components;
 using UniformWMS.Web.Services;
@@ -29,6 +30,17 @@ builder.Services.AddHttpClient<ReturnOrderApiService>(c => c.BaseAddress = new U
 builder.Services.AddHttpClient<PurchaseOrderApiService>(c => c.BaseAddress = new Uri(apiBaseUrl));
 builder.Services.AddHttpClient<UserApiService>(c => c.BaseAddress = new Uri(apiBaseUrl));
 builder.Services.AddHttpClient<RoleApiService>(c => c.BaseAddress = new Uri(apiBaseUrl));
+
+// Blazor Server với custom JwtAuthStateProvider không dùng middleware auth pipeline.
+// Vẫn cần đăng ký IAuthenticationService nhưng phải chỉ định scheme rõ để tránh
+// lỗi "No DefaultChallengeScheme". Việc redirect login do <RedirectToLogin> đảm nhận.
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = "NoOp";
+    options.DefaultChallengeScheme = "NoOp";
+    options.DefaultForbidScheme = "NoOp";
+})
+.AddScheme<AuthenticationSchemeOptions, NoOpAuthenticationHandler>("NoOp", _ => { });
 
 builder.Services.AddAuthorizationCore();
 
