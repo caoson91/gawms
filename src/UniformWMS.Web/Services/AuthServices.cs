@@ -126,6 +126,91 @@ public class AuthApiService : ApiServiceBase
     }
 }
 
+public class RefreshTokenHandler : DelegatingHandler
+{
+    private readonly ILocalStorageService _storage;
+    private readonly AuthApiService _authService;
+    private readonly SemaphoreSlim _refreshLock = new(1, 1);
+
+    public RefreshTokenHandler(ILocalStorageService storage, AuthApiService authService)
+    {
+        _storage = storage;
+        _authService = authService;
+    }
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        // Attach access token
+        var token = await _storage.GetItemAsStringAsync("access_token");
+        if (!string.IsNullOrEmpty(token))
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await base.SendAsync(request, cancellationToken);
+
+        if (response.StatusCode != HttpStatusCode.Unauthorized)
+            return response;
+
+        // Try refresh (single concurrent refresh)
+        await _refreshLock.WaitAsync(cancellationToken);
+        try
+        {
+            // Check if another caller already refreshed the token
+            var current = await _storage.GetItemAsStringAsync("access_token");
+            if (current == token)
+            {
+                var refreshed = await _authService.TryRefreshAsync();
+                if (!refreshed)
+                    return response; // Refresh failed, return original 401
+            }
+
+            // Retry original request with new token
+            var newToken = await _storage.GetItemAsStringAsync("access_token");
+            if (!string.IsNullOrEmpty(newToken))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", newToken);
+
+                // clone request for retry if needed (HttpRequestMessage can be sent only once)
+                var newRequest = await CloneHttpRequestMessageAsync(request);
+                return await base.SendAsync(newRequest, cancellationToken);
+            }
+
+            return response;
+        }
+        finally
+        {
+            _refreshLock.Release();
+        }
+    }
+
+    private static async Task<HttpRequestMessage> CloneHttpRequestMessageAsync(HttpRequestMessage req)
+    {
+        var clone = new HttpRequestMessage(req.Method, req.RequestUri)
+        {
+            Version = req.Version
+        };
+
+        // copy content (if any)
+        if (req.Content != null)
+        {
+            var ms = new System.IO.MemoryStream();
+            await req.Content.CopyToAsync(ms);
+            ms.Position = 0;
+            clone.Content = new StreamContent(ms);
+
+            foreach (var h in req.Content.Headers)
+                clone.Content.Headers.TryAddWithoutValidation(h.Key, h.Value);
+        }
+
+        foreach (var header in req.Headers)
+            clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
+
+        foreach (var prop in req.Options)
+            clone.Options.Set(new System.Net.Http.HttpRequestOptionsKey<object>(prop.Key), prop.Value);
+
+        return clone;
+    }
+}
+
 // ─── Custom AuthStateProvider ─────────────────────────────────────────────────
 
 public class JwtAuthStateProvider : AuthenticationStateProvider

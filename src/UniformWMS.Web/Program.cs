@@ -31,6 +31,21 @@ builder.Services.AddHttpClient<PurchaseOrderApiService>(c => c.BaseAddress = new
 builder.Services.AddHttpClient<UserApiService>(c => c.BaseAddress = new Uri(apiBaseUrl));
 builder.Services.AddHttpClient<RoleApiService>(c => c.BaseAddress = new Uri(apiBaseUrl));
 
+// when adding the HttpClient used by your Api services
+builder.Services.AddTransient<RefreshTokenHandler>();
+builder.Services.AddHttpClient("ApiClient", client =>
+{
+    client.BaseAddress = new Uri(apiBaseUrl);
+})
+.AddHttpMessageHandler<RefreshTokenHandler>();
+
+// Example of registering typed client or resolving named client for ApiServiceBase
+builder.Services.AddScoped(sp =>
+{
+    var factory = sp.GetRequiredService<IHttpClientFactory>();
+    return factory.CreateClient("ApiClient");
+});
+
 // Blazor Server với custom JwtAuthStateProvider không dùng middleware auth pipeline.
 // Vẫn cần đăng ký IAuthenticationService nhưng phải chỉ định scheme rõ để tránh
 // lỗi "No DefaultChallengeScheme". Việc redirect login do <RedirectToLogin> đảm nhận.
