@@ -78,7 +78,7 @@ builder.Services.AddAuthorization();
 // CORS for Blazor Web frontend
 builder.Services.AddCors(o => o.AddPolicy("BlazorPolicy", p =>
     p.WithOrigins(
-        builder.Configuration["Frontend:BaseUrl"] ?? "https://localhost:7200")
+        builder.Configuration["Frontend:BaseUrl"] ?? "https://localhost:53477")
      .AllowAnyMethod()
      .AllowAnyHeader()
      .AllowCredentials()));
@@ -100,7 +100,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "UniformWMS API v1"));
 }
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 app.UseCors("BlazorPolicy");
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseAuthentication();

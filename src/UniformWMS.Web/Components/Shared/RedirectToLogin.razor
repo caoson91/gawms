@@ -1,12 +1,9 @@
 @inject NavigationManager Nav
 
 @code {
-    protected override void OnAfterRender(bool firstRender)
+    protected override void OnInitialized()
     {
-        if (firstRender)
-        {
-            var returnUrl = Uri.EscapeDataString(Nav.ToBaseRelativePath(Nav.Uri));
-            Nav.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: false);
-        }
+        var returnUrl = Uri.EscapeDataString(Nav.ToBaseRelativePath(Nav.Uri));
+        Nav.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: false);
     }
 }

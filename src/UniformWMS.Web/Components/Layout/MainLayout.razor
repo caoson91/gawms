@@ -4,114 +4,149 @@
 @inject JwtAuthStateProvider AuthStateProvider
 @inject AuthenticationStateProvider AuthProvider
 
-<div class="d-flex vh-100 overflow-hidden">
-    <!-- Sidebar -->
-    <nav class="sidebar bg-dark text-white d-flex flex-column" style="width:260px;min-width:260px;">
-        <!-- Logo -->
-        <div class="p-3 border-bottom border-secondary">
-            <div class="d-flex align-items-center gap-2">
-                <i class="bi bi-box-seam fs-4 text-primary"></i>
-                <div>
-                    <div class="fw-bold">UniformWMS</div>
-                    <small class="text-muted" style="font-size:0.7rem;">Quản lý kho đồng phục</small>
+@if (_isChecking)
+{
+    <div class="d-flex justify-content-center align-items-center vh-100">
+        <div class="text-center text-muted">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+            <div class="small">Đang tải...</div>
+        </div>
+    </div>
+}
+else if (!_isAuthenticated)
+{
+    @* Không render gì — OnInitializedAsync sẽ redirect về /login *@
+}
+else
+{
+    <div class="d-flex vh-100 overflow-hidden">
+        <!-- Sidebar -->
+        <nav class="sidebar bg-dark text-white d-flex flex-column" style="width:260px;min-width:260px;">
+            <!-- Logo -->
+            <div class="p-3 border-bottom border-secondary">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-box-seam fs-4 text-primary"></i>
+                    <div>
+                        <div class="fw-bold">UniformWMS</div>
+                        <small class="text-muted" style="font-size:0.7rem;">Quản lý kho đồng phục</small>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Navigation -->
-        <div class="flex-grow-1 overflow-auto py-2">
-            <NavItem Href="/" Icon="bi-speedometer2" Label="Dashboard" />
+            <!-- Navigation -->
+            <div class="flex-grow-1 overflow-auto py-2">
+                <NavItem Href="/" Icon="bi-speedometer2" Label="Dashboard" />
 
-            <div class="px-3 py-1 mt-2">
-                <small class="text-uppercase text-muted fw-semibold" style="font-size:0.65rem;letter-spacing:1px;">
-                    KHO ĐỒng phục
-                </small>
+                <div class="px-3 py-1 mt-2">
+                    <small class="text-uppercase text-muted fw-semibold" style="font-size:0.65rem;letter-spacing:1px;">
+                        KHO ĐỒng phục
+                    </small>
+                </div>
+                <NavItem Href="/uniforms" Icon="bi-shirt" Label="Mặt hàng đồng phục" />
+                <NavItem Href="/categories" Icon="bi-tags" Label="Danh mục" />
+                <NavItem Href="/stock" Icon="bi-archive" Label="Tồn kho" />
+
+                <div class="px-3 py-1 mt-2">
+                    <small class="text-uppercase text-muted fw-semibold" style="font-size:0.65rem;letter-spacing:1px;">
+                        NGHIỆP VỤ
+                    </small>
+                </div>
+                <NavItem Href="/issuances" Icon="bi-box-arrow-up" Label="Phiếu cấp phát" />
+                <NavItem Href="/returns" Icon="bi-box-arrow-in-down" Label="Phiếu thu hồi" />
+                <NavItem Href="/purchases" Icon="bi-cart-plus" Label="Nhập hàng" />
+
+                <div class="px-3 py-1 mt-2">
+                    <small class="text-uppercase text-muted fw-semibold" style="font-size:0.65rem;letter-spacing:1px;">
+                        DANH MỤC
+                    </small>
+                </div>
+                <NavItem Href="/employees" Icon="bi-people" Label="Nhân viên" />
+                <NavItem Href="/suppliers" Icon="bi-building" Label="Nhà cung cấp" />
+
+                <div class="px-3 py-1 mt-2">
+                    <small class="text-uppercase text-muted fw-semibold" style="font-size:0.65rem;letter-spacing:1px;">
+                        HỆ THỐNG
+                    </small>
+                </div>
+                <NavItem Href="/admin/users" Icon="bi-person-gear" Label="Người dùng" />
+                <NavItem Href="/admin/roles" Icon="bi-shield-lock" Label="Vai trò & Quyền" />
             </div>
-            <NavItem Href="/uniforms" Icon="bi-shirt" Label="Mặt hàng đồng phục" />
-            <NavItem Href="/categories" Icon="bi-tags" Label="Danh mục" />
-            <NavItem Href="/stock" Icon="bi-archive" Label="Tồn kho" />
 
-            <div class="px-3 py-1 mt-2">
-                <small class="text-uppercase text-muted fw-semibold" style="font-size:0.65rem;letter-spacing:1px;">
-                    NGHIỆP VỤ
-                </small>
-            </div>
-            <NavItem Href="/issuances" Icon="bi-box-arrow-up" Label="Phiếu cấp phát" />
-            <NavItem Href="/returns" Icon="bi-box-arrow-in-down" Label="Phiếu thu hồi" />
-            <NavItem Href="/purchases" Icon="bi-cart-plus" Label="Nhập hàng" />
-
-            <div class="px-3 py-1 mt-2">
-                <small class="text-uppercase text-muted fw-semibold" style="font-size:0.65rem;letter-spacing:1px;">
-                    DANH MỤC
-                </small>
-            </div>
-            <NavItem Href="/employees" Icon="bi-people" Label="Nhân viên" />
-            <NavItem Href="/suppliers" Icon="bi-building" Label="Nhà cung cấp" />
-
-            <div class="px-3 py-1 mt-2">
-                <small class="text-uppercase text-muted fw-semibold" style="font-size:0.65rem;letter-spacing:1px;">
-                    HỆ THỐNG
-                </small>
-            </div>
-            <NavItem Href="/admin/users" Icon="bi-person-gear" Label="Người dùng" />
-            <NavItem Href="/admin/roles" Icon="bi-shield-lock" Label="Vai trò & Quyền" />
-        </div>
-
-        <!-- Current user -->
-        <div class="p-3 border-top border-secondary">
-            <AuthorizeView>
-                <Authorized>
-                    <div class="d-flex align-items-center gap-2">
-                        <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center"
-                             style="width:34px;height:34px;flex-shrink:0;">
-                            <i class="bi bi-person-fill text-white" style="font-size:1rem;"></i>
-                        </div>
-                        <div class="flex-grow-1 overflow-hidden">
-                            <div class="fw-semibold text-truncate" style="font-size:0.85rem;">
-                                @context.User.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value
-                            </div>
-                            <small class="text-muted text-truncate d-block" style="font-size:0.72rem;">
-                                @context.User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
-                            </small>
-                        </div>
-                        <button class="btn btn-sm btn-outline-secondary border-0"
-                                title="Đăng xuất" @onclick="HandleLogout">
-                            <i class="bi bi-box-arrow-right"></i>
-                        </button>
+            <!-- Current user -->
+            <div class="p-3 border-top border-secondary">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center"
+                         style="width:34px;height:34px;flex-shrink:0;">
+                        <i class="bi bi-person-fill text-white" style="font-size:1rem;"></i>
                     </div>
-                </Authorized>
-            </AuthorizeView>
+                    <div class="flex-grow-1 overflow-hidden">
+                        <div class="fw-semibold text-truncate" style="font-size:0.85rem;">@_fullName</div>
+                        <small class="text-muted text-truncate d-block" style="font-size:0.72rem;">@_username</small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary border-0"
+                            title="Đăng xuất" @onclick="HandleLogout">
+                        <i class="bi bi-box-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="flex-grow-1 d-flex flex-column overflow-hidden">
+            <!-- Top Bar -->
+            <header class="bg-white border-bottom px-4 py-2 d-flex align-items-center justify-content-between"
+                    style="min-height:56px;">
+                <div class="text-muted" style="font-size:0.85rem;">
+                    <i class="bi bi-calendar3 me-1"></i>
+                    @DateTime.Now.ToString("dddd, dd/MM/yyyy", new System.Globalization.CultureInfo("vi-VN"))
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <a href="/change-password" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-key me-1"></i>Đổi mật khẩu
+                    </a>
+                </div>
+            </header>
+
+            <!-- Page Body -->
+            <main class="flex-grow-1 overflow-auto bg-light p-4">
+                @Body
+            </main>
         </div>
-    </nav>
-
-    <!-- Main Content -->
-    <div class="flex-grow-1 d-flex flex-column overflow-hidden">
-        <!-- Top Bar -->
-        <header class="bg-white border-bottom px-4 py-2 d-flex align-items-center justify-content-between"
-                style="min-height:56px;">
-            <div class="text-muted" style="font-size:0.85rem;">
-                <i class="bi bi-calendar3 me-1"></i>
-                @DateTime.Now.ToString("dddd, dd/MM/yyyy", new System.Globalization.CultureInfo("vi-VN"))
-            </div>
-            <div class="d-flex align-items-center gap-2">
-                <a href="/change-password" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-key me-1"></i>Đổi mật khẩu
-                </a>
-            </div>
-        </header>
-
-        <!-- Page Body -->
-        <main class="flex-grow-1 overflow-auto bg-light p-4">
-            @Body
-        </main>
     </div>
-</div>
+}
 
 @code {
+    private bool _isChecking = true;
+    private bool _isAuthenticated = false;
+    private string? _fullName;
+    private string? _username;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            _isAuthenticated = true;
+            _fullName = user.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value;
+            _username = user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+        }
+        else
+        {
+            _isAuthenticated = false;
+            var returnUrl = Uri.EscapeDataString(Nav.ToBaseRelativePath(Nav.Uri));
+            Nav.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: false);
+        }
+
+        _isChecking = false;
+    }
+
     private async Task HandleLogout()
     {
         await AuthService.LogoutAsync();
-        AuthStateProvider.MarkAsLoggedOut();   // Cập nhật state ngay, không cần đọc lại storage
+        AuthStateProvider.MarkAsLoggedOut();
         Nav.NavigateTo("/login", forceLoad: false);
     }
 }
+
